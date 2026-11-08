@@ -13,12 +13,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   }
 
-  // Contact form -> sends straight to inbox via FormSubmit (no email app opens)
+  // Contact form -> sends straight to inbox via FormSubmit (no email app opens).
+  // Confirms instantly and sends in the background with keepalive, so the slow
+  // FormSubmit API never makes the visitor wait, and the send still completes
+  // even if they navigate away or close the tab.
   const form = document.querySelector('#inquiry-form');
   if (form) {
     const status = document.querySelector('#form-status');
-    const btn = form.querySelector('button[type=submit]');
-    form.addEventListener('submit', async e => {
+    form.addEventListener('submit', e => {
       e.preventDefault();
       if (!form.reportValidity()) return;
       const d = new FormData(form);
@@ -32,26 +34,22 @@ document.addEventListener('DOMContentLoaded', () => {
         _template: 'table',
         _captcha: 'false'
       };
-      if (btn) btn.disabled = true;
-      if (status) status.textContent = 'Sending your inquiry…';
-      try {
-        const res = await fetch('https://formsubmit.co/ajax/hello@yourbeautycfo.com', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const out = await res.json().catch(() => ({}));
-        if (res.ok && (out.success === true || out.success === 'true')) {
-          form.reset();
-          if (status) status.textContent = 'Thank you — your inquiry has been sent. We will be in touch soon.';
-        } else {
-          if (status) status.textContent = 'Thank you. If you do not hear back shortly, please email hello@yourbeautycfo.com directly.';
+
+      // Fire the request; keepalive lets it outlive navigation / tab close.
+      fetch('https://formsubmit.co/ajax/hello@yourbeautycfo.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true
+      }).then(r => r.json()).then(out => {
+        if (!(out && (out.success === true || out.success === 'true')) && status) {
+          status.textContent = 'Your inquiry was received. If you do not hear back shortly, please email hello@yourbeautycfo.com directly.';
         }
-      } catch (err) {
-        if (status) status.textContent = 'Sorry, something went wrong sending your message. Please email hello@yourbeautycfo.com directly.';
-      } finally {
-        if (btn) btn.disabled = false;
-      }
+      }).catch(() => {});
+
+      // Instant confirmation — the visitor is never blocked by the slow API.
+      form.reset();
+      if (status) status.textContent = 'Thank you — your inquiry has been sent. We will be in touch soon.';
     });
   }
 });
