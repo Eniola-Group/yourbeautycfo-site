@@ -1,0 +1,5 @@
+# Always revalidate code/style so updates go live immediately (no stale cache)
+/script.js
+  Cache-Control: public, max-age=0, must-revalidate
+/style.css
+  Cache-Control: public, max-age=0, must-revalidate
